@@ -25,8 +25,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
 	"github.com/kubernetes-incubator/external-dns/controller"
 	"github.com/kubernetes-incubator/external-dns/pkg/apis/externaldns"
 	"github.com/kubernetes-incubator/external-dns/pkg/apis/externaldns/validation"
@@ -67,21 +65,20 @@ func main() {
 
 	// Create a source.Config from the flags passed by the user.
 	sourceCfg := &source.Config{
-		Namespace:                   cfg.Namespace,
-		AnnotationFilter:            cfg.AnnotationFilter,
-		FQDNTemplate:                cfg.FQDNTemplate,
-		CombineFQDNAndAnnotation:    cfg.CombineFQDNAndAnnotation,
-		IgnoreHostnameAnnotation:    cfg.IgnoreHostnameAnnotation,
-		Compatibility:               cfg.Compatibility,
-		PublishInternal:             cfg.PublishInternal,
-		PublishHostIP:               cfg.PublishHostIP,
-		ConnectorServer:             cfg.ConnectorSourceServer,
-		CRDSourceAPIVersion:         cfg.CRDSourceAPIVersion,
-		CRDSourceKind:               cfg.CRDSourceKind,
-		KubeConfig:                  cfg.KubeConfig,
-		KubeMaster:                  cfg.Master,
-		ServiceTypeFilter:           cfg.ServiceTypeFilter,
-		IstioIngressGatewayServices: cfg.IstioIngressGatewayServices,
+		Namespace:                cfg.Namespace,
+		AnnotationFilter:         cfg.AnnotationFilter,
+		FQDNTemplate:             cfg.FQDNTemplate,
+		CombineFQDNAndAnnotation: cfg.CombineFQDNAndAnnotation,
+		IgnoreHostnameAnnotation: cfg.IgnoreHostnameAnnotation,
+		Compatibility:            cfg.Compatibility,
+		PublishInternal:          cfg.PublishInternal,
+		PublishHostIP:            cfg.PublishHostIP,
+		ConnectorServer:          cfg.ConnectorSourceServer,
+		CRDSourceAPIVersion:      cfg.CRDSourceAPIVersion,
+		CRDSourceKind:            cfg.CRDSourceKind,
+		KubeConfig:               cfg.KubeConfig,
+		KubeMaster:               cfg.Master,
+		ServiceTypeFilter:        cfg.ServiceTypeFilter,
 	}
 
 	// Lookup all the selected sources by names and pass them the desired configuration.
@@ -98,109 +95,11 @@ func main() {
 	endpointsSource := source.NewDedupSource(source.NewMultiSource(sources))
 
 	domainFilter := provider.NewDomainFilter(cfg.DomainFilter)
-	zoneIDFilter := provider.NewZoneIDFilter(cfg.ZoneIDFilter)
-	zoneTypeFilter := provider.NewZoneTypeFilter(cfg.AWSZoneType)
-	zoneTagFilter := provider.NewZoneTagFilter(cfg.AWSZoneTagFilter)
 
 	var p provider.Provider
 	switch cfg.Provider {
-	case "alibabacloud":
-		p, err = provider.NewAlibabaCloudProvider(cfg.AlibabaCloudConfigFile, domainFilter, zoneIDFilter, cfg.AlibabaCloudZoneType, cfg.DryRun)
-	case "aws":
-		p, err = provider.NewAWSProvider(
-			provider.AWSConfig{
-				DomainFilter:         domainFilter,
-				ZoneIDFilter:         zoneIDFilter,
-				ZoneTypeFilter:       zoneTypeFilter,
-				ZoneTagFilter:        zoneTagFilter,
-				BatchChangeSize:      cfg.AWSBatchChangeSize,
-				BatchChangeInterval:  cfg.AWSBatchChangeInterval,
-				EvaluateTargetHealth: cfg.AWSEvaluateTargetHealth,
-				AssumeRole:           cfg.AWSAssumeRole,
-				APIRetries:           cfg.AWSAPIRetries,
-				DryRun:               cfg.DryRun,
-			},
-		)
-	case "aws-sd":
-		// Check that only compatible Registry is used with AWS-SD
-		if cfg.Registry != "noop" && cfg.Registry != "aws-sd" {
-			log.Infof("Registry \"%s\" cannot be used with AWS ServiceDiscovery. Switching to \"aws-sd\".", cfg.Registry)
-			cfg.Registry = "aws-sd"
-		}
-		p, err = provider.NewAWSSDProvider(domainFilter, cfg.AWSZoneType, cfg.AWSAssumeRole, cfg.DryRun)
-	case "azure":
-		p, err = provider.NewAzureProvider(cfg.AzureConfigFile, domainFilter, zoneIDFilter, cfg.AzureResourceGroup, cfg.DryRun)
-	case "cloudflare":
-		p, err = provider.NewCloudFlareProvider(domainFilter, zoneIDFilter, cfg.CloudflareZonesPerPage, cfg.CloudflareProxied, cfg.DryRun)
-	case "rcodezero":
-		p, err = provider.NewRcodeZeroProvider(domainFilter, cfg.DryRun, cfg.RcodezeroTXTEncrypt)
-	case "google":
-		p, err = provider.NewGoogleProvider(cfg.GoogleProject, domainFilter, zoneIDFilter, cfg.DryRun)
-	case "digitalocean":
-		p, err = provider.NewDigitalOceanProvider(domainFilter, cfg.DryRun)
-	case "linode":
-		p, err = provider.NewLinodeProvider(domainFilter, cfg.DryRun, externaldns.Version)
-	case "dnsimple":
-		p, err = provider.NewDnsimpleProvider(domainFilter, zoneIDFilter, cfg.DryRun)
-	case "infoblox":
-		p, err = provider.NewInfobloxProvider(
-			provider.InfobloxConfig{
-				DomainFilter: domainFilter,
-				ZoneIDFilter: zoneIDFilter,
-				Host:         cfg.InfobloxGridHost,
-				Port:         cfg.InfobloxWapiPort,
-				Username:     cfg.InfobloxWapiUsername,
-				Password:     cfg.InfobloxWapiPassword,
-				Version:      cfg.InfobloxWapiVersion,
-				SSLVerify:    cfg.InfobloxSSLVerify,
-				View:         cfg.InfobloxView,
-				DryRun:       cfg.DryRun,
-			},
-		)
-	case "dyn":
-		p, err = provider.NewDynProvider(
-			provider.DynConfig{
-				DomainFilter:  domainFilter,
-				ZoneIDFilter:  zoneIDFilter,
-				DryRun:        cfg.DryRun,
-				CustomerName:  cfg.DynCustomerName,
-				Username:      cfg.DynUsername,
-				Password:      cfg.DynPassword,
-				MinTTLSeconds: cfg.DynMinTTLSeconds,
-				AppVersion:    externaldns.Version,
-			},
-		)
 	case "coredns", "skydns":
 		p, err = provider.NewCoreDNSProvider(domainFilter, cfg.DryRun)
-	case "exoscale":
-		p, err = provider.NewExoscaleProvider(cfg.ExoscaleEndpoint, cfg.ExoscaleAPIKey, cfg.ExoscaleAPISecret, cfg.DryRun, provider.ExoscaleWithDomain(domainFilter), provider.ExoscaleWithLogging()), nil
-	case "inmemory":
-		p, err = provider.NewInMemoryProvider(provider.InMemoryInitZones(cfg.InMemoryZones), provider.InMemoryWithDomain(domainFilter), provider.InMemoryWithLogging()), nil
-	case "designate":
-		p, err = provider.NewDesignateProvider(domainFilter, cfg.DryRun)
-	case "pdns":
-		p, err = provider.NewPDNSProvider(
-			provider.PDNSConfig{
-				DomainFilter: domainFilter,
-				DryRun:       cfg.DryRun,
-				Server:       cfg.PDNSServer,
-				APIKey:       cfg.PDNSAPIKey,
-				TLSConfig: provider.TLSConfig{
-					TLSEnabled:            cfg.PDNSTLSEnabled,
-					CAFilePath:            cfg.TLSCA,
-					ClientCertFilePath:    cfg.TLSClientCert,
-					ClientCertKeyFilePath: cfg.TLSClientCertKey,
-				},
-			},
-		)
-	case "oci":
-		var config *provider.OCIConfig
-		config, err = provider.LoadOCIConfig(cfg.OCIConfigFile)
-		if err == nil {
-			p, err = provider.NewOCIProvider(*config, domainFilter, zoneIDFilter, cfg.DryRun)
-		}
-	case "rfc2136":
-		p, err = provider.NewRfc2136Provider(cfg.RFC2136Host, cfg.RFC2136Port, cfg.RFC2136Zone, cfg.RFC2136Insecure, cfg.RFC2136TSIGKeyName, cfg.RFC2136TSIGSecret, cfg.RFC2136TSIGSecretAlg, cfg.RFC2136TAXFR, domainFilter, cfg.DryRun, nil)
 	default:
 		log.Fatalf("unknown dns provider: %s", cfg.Provider)
 	}
@@ -210,12 +109,8 @@ func main() {
 
 	var r registry.Registry
 	switch cfg.Registry {
-	case "noop":
-		r, err = registry.NewNoopRegistry(p)
 	case "txt":
 		r, err = registry.NewTXTRegistry(p, cfg.TXTPrefix, cfg.TXTOwnerID, cfg.TXTCacheInterval)
-	case "aws-sd":
-		r, err = registry.NewAWSSDRegistry(p.(*provider.AWSSDProvider), cfg.TXTOwnerID)
 	default:
 		log.Fatalf("unknown registry: %s", cfg.Registry)
 	}
