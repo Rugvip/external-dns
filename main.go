@@ -94,11 +94,14 @@ func main() {
 
 	// Combine multiple sources into a single, deduplicated source.
 	endpointsSource := source.NewDedupSource(source.NewMultiSource(sources))
+	zoneIDFilter := provider.NewZoneIDFilter(cfg.ZoneIDFilter)
 
 	domainFilter := provider.NewDomainFilter(cfg.DomainFilter)
 
 	var p provider.Provider
 	switch cfg.Provider {
+	case "google":
+		p, err = provider.NewGoogleProvider(cfg.GoogleProject, domainFilter, zoneIDFilter, cfg.DryRun)
 	case "coredns", "skydns":
 		p, err = provider.NewCoreDNSProvider(domainFilter, cfg.DryRun)
 	default:
