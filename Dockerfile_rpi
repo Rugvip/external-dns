@@ -1,0 +1,7 @@
+FROM arm32v7/alpine
+
+COPY build/external-dns /bin/external-dns
+
+USER nobody
+
+ENTRYPOINT ["/bin/external-dns"]
