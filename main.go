@@ -70,6 +70,7 @@ func main() {
 		FQDNTemplate:             cfg.FQDNTemplate,
 		CombineFQDNAndAnnotation: cfg.CombineFQDNAndAnnotation,
 		IgnoreHostnameAnnotation: cfg.IgnoreHostnameAnnotation,
+		DefaultTargets:           cfg.DefaultTargets,
 		Compatibility:            cfg.Compatibility,
 		PublishInternal:          cfg.PublishInternal,
 		PublishHostIP:            cfg.PublishHostIP,

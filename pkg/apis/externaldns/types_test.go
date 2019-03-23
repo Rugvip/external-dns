@@ -92,6 +92,7 @@ var (
 		Sources:                     []string{"service", "ingress", "connector"},
 		Namespace:                   "namespace",
 		IgnoreHostnameAnnotation:    true,
+		DefaultTarget:               []string{},
 		FQDNTemplate:                "{{.Name}}.service.example.com",
 		Compatibility:               "mate",
 		Provider:                    "google",

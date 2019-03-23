@@ -19,12 +19,13 @@ package source
 import (
 	"bytes"
 	"fmt"
-	kubeinformers "k8s.io/client-go/informers"
-	coreinformers "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/tools/cache"
 	"sort"
 	"strings"
 	"text/template"
+
+	kubeinformers "k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	log "github.com/sirupsen/logrus"
 
@@ -35,8 +36,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kubernetes-incubator/external-dns/endpoint"
 	"time"
+
+	"github.com/kubernetes-incubator/external-dns/endpoint"
 )
 
 const (
@@ -57,6 +59,7 @@ type serviceSource struct {
 	fqdnTemplate             *template.Template
 	combineFQDNAnnotation    bool
 	ignoreHostnameAnnotation bool
+	defaultTargets           endpoint.Targets
 	publishInternal          bool
 	publishHostIP            bool
 	serviceInformer          coreinformers.ServiceInformer
@@ -66,7 +69,7 @@ type serviceSource struct {
 }
 
 // NewServiceSource creates a new serviceSource with the given config.
-func NewServiceSource(kubeClient kubernetes.Interface, namespace, annotationFilter string, fqdnTemplate string, combineFqdnAnnotation bool, compatibility string, publishInternal bool, publishHostIP bool, serviceTypeFilter []string, ignoreHostnameAnnotation bool) (Source, error) {
+func NewServiceSource(kubeClient kubernetes.Interface, namespace, annotationFilter string, fqdnTemplate string, combineFqdnAnnotation bool, compatibility string, publishInternal bool, publishHostIP bool, serviceTypeFilter []string, ignoreHostnameAnnotation bool, defaultTargets []string) (Source, error) {
 	var (
 		tmpl *template.Template
 		err  error
@@ -136,6 +139,7 @@ func NewServiceSource(kubeClient kubernetes.Interface, namespace, annotationFilt
 		fqdnTemplate:             tmpl,
 		combineFQDNAnnotation:    combineFqdnAnnotation,
 		ignoreHostnameAnnotation: ignoreHostnameAnnotation,
+		defaultTargets:           endpoint.Targets(defaultTargets),
 		publishInternal:          publishInternal,
 		publishHostIP:            publishHostIP,
 		serviceInformer:          serviceInformer,
@@ -403,6 +407,10 @@ func (sc *serviceSource) generateEndpoints(svc *v1.Service, hostname string, nod
 		// add the nodeTargets and extract an SRV endpoint
 		targets = append(targets, nodeTargets...)
 		endpoints = append(endpoints, sc.extractNodePortEndpoints(svc, nodeTargets, hostname, ttl)...)
+	}
+
+	if len(targets) == 0 {
+		targets = sc.defaultTargets
 	}
 
 	for _, t := range targets {

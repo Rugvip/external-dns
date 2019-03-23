@@ -23,6 +23,8 @@ import (
 	"strings"
 	"text/template"
 
+	"time"
+
 	"github.com/kubernetes-incubator/external-dns/endpoint"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/extensions/v1beta1"
@@ -33,7 +35,6 @@ import (
 	extinformers "k8s.io/client-go/informers/extensions/v1beta1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"time"
 )
 
 // ingressSource is an implementation of Source for Kubernetes ingress objects.
@@ -47,11 +48,12 @@ type ingressSource struct {
 	fqdnTemplate             *template.Template
 	combineFQDNAnnotation    bool
 	ignoreHostnameAnnotation bool
+	defaultTargets           endpoint.Targets
 	ingressInformer          extinformers.IngressInformer
 }
 
 // NewIngressSource creates a new ingressSource with the given config.
-func NewIngressSource(kubeClient kubernetes.Interface, namespace, annotationFilter string, fqdnTemplate string, combineFqdnAnnotation bool, ignoreHostnameAnnotation bool) (Source, error) {
+func NewIngressSource(kubeClient kubernetes.Interface, namespace, annotationFilter string, fqdnTemplate string, combineFqdnAnnotation bool, ignoreHostnameAnnotation bool, defaultTargets []string) (Source, error) {
 	var (
 		tmpl *template.Template
 		err  error
@@ -96,6 +98,7 @@ func NewIngressSource(kubeClient kubernetes.Interface, namespace, annotationFilt
 		fqdnTemplate:             tmpl,
 		combineFQDNAnnotation:    combineFqdnAnnotation,
 		ignoreHostnameAnnotation: ignoreHostnameAnnotation,
+		defaultTargets:           endpoint.Targets(defaultTargets),
 		ingressInformer:          ingressInformer,
 	}
 	return sc, nil
@@ -124,7 +127,7 @@ func (sc *ingressSource) Endpoints() ([]*endpoint.Endpoint, error) {
 			continue
 		}
 
-		ingEndpoints := endpointsFromIngress(ing, sc.ignoreHostnameAnnotation)
+		ingEndpoints := endpointsFromIngress(ing, sc.ignoreHostnameAnnotation, sc.defaultTargets)
 
 		// apply template if host is missing on ingress
 		if (sc.combineFQDNAnnotation || len(ingEndpoints) == 0) && sc.fqdnTemplate != nil {
@@ -178,6 +181,10 @@ func (sc *ingressSource) endpointsFromTemplate(ing *v1beta1.Ingress) ([]*endpoin
 		targets = targetsFromIngressStatus(ing.Status)
 	}
 
+	if len(targets) == 0 {
+		targets = sc.defaultTargets
+	}
+
 	providerSpecific := getProviderSpecificAnnotations(ing.Annotations)
 
 	var endpoints []*endpoint.Endpoint
@@ -228,7 +235,7 @@ func (sc *ingressSource) setResourceLabel(ingress *v1beta1.Ingress, endpoints []
 }
 
 // endpointsFromIngress extracts the endpoints from ingress object
-func endpointsFromIngress(ing *v1beta1.Ingress, ignoreHostnameAnnotation bool) []*endpoint.Endpoint {
+func endpointsFromIngress(ing *v1beta1.Ingress, ignoreHostnameAnnotation bool, defaultTargets endpoint.Targets) []*endpoint.Endpoint {
 	var endpoints []*endpoint.Endpoint
 
 	ttl, err := getTTLFromAnnotations(ing.Annotations)
@@ -240,6 +247,10 @@ func endpointsFromIngress(ing *v1beta1.Ingress, ignoreHostnameAnnotation bool) [
 
 	if len(targets) == 0 {
 		targets = targetsFromIngressStatus(ing.Status)
+	}
+
+	if len(targets) == 0 {
+		targets = defaultTargets
 	}
 
 	providerSpecific := getProviderSpecificAnnotations(ing.Annotations)
